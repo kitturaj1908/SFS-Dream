@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SFS College DEEKSHARAMBHA 2K26 - Student Message Portal</title>
+    <title>SFS College - Student Message Portal</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
         body {
@@ -167,10 +167,7 @@
         <div id="form-container">
             <div class="header-section">
                 <h1 class="text-neon-cyan">SFS College (Autonomous) </h1>
-                <h2 style="font-size: 2 rem; font-weight: 500; letter-spacing: 0.5px; margin-bottom: 10px;">
-                    DEEKSHARAMBHA 2K26</h2>
-                <p>Welcome, newcomers! Share your dreams, goals, or positive wishes for your journey at SFS. Your words
-                    will form the leaves of our digital <strong>Dream Tree</strong>.</p>
+                <p>Welcome, newcomers! Share your dreams, goals, or positive wishes for your journey at SFS.</p>
             </div>
 
             <form id="dream-form" onsubmit="submitDream(event)">
@@ -182,13 +179,13 @@
 
                 <div class="form-group">
                     <label for="student-message">Your Dream / Message *</label>
-                    <textarea id="student-message" required maxlength="150"
+                    <textarea id="student-message" required maxlength="250"
                         placeholder="e.g., To learn, make amazing friends, and excel in technology!"></textarea>
-                    <div class="char-counter"><span id="char-count">0</span> / 150</div>
+                    <div class="char-counter"><span id="char-count">0</span> / 250</div>
                 </div>
 
                 <button type="submit" class="glow-btn submit-btn" id="submit-btn">
-                    Send to the Dream Tree
+                    Send
                 </button>
             </form>
         </div>
@@ -197,9 +194,7 @@
         <div id="success-container" class="success-overlay">
             <div class="success-icon">✓</div>
             <h2 class="text-neon-magenta">Dream Sent!</h2>
-            <p>Your wish has been registered. Keep your eyes on the main screen during DEEKSHARAMBHA 2K26 to watch the
-                <strong>Dream Tree of SFS Students</strong> blossom with your words!
-            </p>
+            <p>Your wish has been registered.</p>
             <button onclick="resetForm()" class="glow-btn"
                 style="padding: 10px 20px; font-size: 0.9rem; background: transparent; border: 1px solid rgba(255, 255, 255, 0.2); color: white;">
                 Submit Another Dream
@@ -295,7 +290,7 @@
                 } else if (response.ok && data.status === 'filtered') {
                     // 🌱 Message was neutral/negative — encourage a positive rewrite
                     submitBtn.disabled = false;
-                    submitBtn.textContent = "Send to the Dream Tree";
+                    submitBtn.textContent = "Send";
 
                     // Show gentle nudge banner
                     let nudge = document.getElementById('nudge-banner');
@@ -317,7 +312,6 @@
                     }
                     nudge.innerHTML = `
                         🌳 <strong>Keep it positive!</strong><br>
-                        The Dream Tree only blooms with uplifting messages — hopes, goals, and good wishes.<br>
                         <span style="color:rgba(0,242,254,0.8); font-size:0.85rem;">Try writing what you are excited about at SFS College!</span>
                     `;
                     nudge.style.display = 'block';
@@ -325,13 +319,13 @@
                 } else {
                     alert(data.detail || "Error submitting message.");
                     submitBtn.disabled = false;
-                    submitBtn.textContent = "Send to the Dream Tree";
+                    submitBtn.textContent = "Send";
                 }
             } catch (err) {
                 console.error(err);
                 alert("Network error, please try again.");
                 submitBtn.disabled = false;
-                submitBtn.textContent = "Send to the Dream Tree";
+                submitBtn.textContent = "Send";
             }
         }
 
@@ -339,7 +333,7 @@
             document.getElementById('success-container').style.display = 'none';
             document.getElementById('form-container').style.display = 'block';
             document.getElementById('submit-btn').disabled = false;
-            document.getElementById('submit-btn').textContent = "Send to the Dream Tree";
+            document.getElementById('submit-btn').textContent = "Send";
         }
     </script>
 </body>

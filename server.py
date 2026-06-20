@@ -18,68 +18,268 @@ STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 
 os.makedirs(STATIC_DIR, exist_ok=True)
 
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+# PostgreSQL support
+DATABASE_URL = os.environ.get("DATABASE_URL")
+IS_POSTGRES = DATABASE_URL is not None
 
-def init_db():
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_name TEXT,
-            message TEXT NOT NULL,
-            sentiment TEXT NOT NULL,
-            status TEXT NOT NULL, -- 'approved', 'pending', 'blocked'
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        )
-    """)
-    
-    defaults = [
-        ('is_activated', 'false'),
-        ('activation_key', 'Space'),
-        ('blocked_count', '0'),
-        ('admin_password', 'sfsadmin123'),
-        ('auto_approve_positive', 'true')
-    ]
-    for key, val in defaults:
-        cursor.execute('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', (key, val))
-    conn.commit()
-    conn.close()
+if IS_POSTGRES:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
 
-init_db()
+class DatabaseManager:
+    def __init__(self):
+        self.is_postgres = IS_POSTGRES
+        self.db_url = DATABASE_URL
+        if self.is_postgres and self.db_url.startswith("postgres://"):
+            self.db_url = self.db_url.replace("postgres://", "postgresql://", 1)
 
+    def get_conn(self):
+        if self.is_postgres:
+            return psycopg2.connect(self.db_url)
+        else:
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            return conn
+
+    def init_db(self):
+        conn = self.get_conn()
+        cursor = conn.cursor()
+        if self.is_postgres:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS messages (
+                    id SERIAL PRIMARY KEY,
+                    student_name TEXT,
+                    message TEXT NOT NULL,
+                    sentiment TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                )
+            """)
+            defaults = [
+                ('is_activated', 'false'),
+                ('activation_key', 'Space'),
+                ('blocked_count', '0'),
+                ('admin_password', 'sfsadmin123'),
+                ('auto_approve_positive', 'true')
+            ]
+            for key, val in defaults:
+                cursor.execute(
+                    'INSERT INTO settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING',
+                    (key, val)
+                )
+        else:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    student_name TEXT,
+                    message TEXT NOT NULL,
+                    sentiment TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                )
+            """)
+            defaults = [
+                ('is_activated', 'false'),
+                ('activation_key', 'Space'),
+                ('blocked_count', '0'),
+                ('admin_password', 'sfsadmin123'),
+                ('auto_approve_positive', 'true')
+            ]
+            for key, val in defaults:
+                cursor.execute('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', (key, val))
+        conn.commit()
+        conn.close()
+
+    def get_setting(self, key: str, default: str = "") -> str:
+        conn = self.get_conn()
+        cursor = conn.cursor()
+        if self.is_postgres:
+            cursor.execute('SELECT value FROM settings WHERE key = %s', (key,))
+            row = cursor.fetchone()
+            val = row[0] if row else None
+        else:
+            cursor.execute('SELECT value FROM settings WHERE key = ?', (key,))
+            row = cursor.fetchone()
+            val = row['value'] if row else None
+        conn.close()
+        return val if val is not None else default
+
+    def set_setting(self, key: str, value: str):
+        conn = self.get_conn()
+        cursor = conn.cursor()
+        if self.is_postgres:
+            cursor.execute(
+                'INSERT INTO settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
+                (key, str(value))
+            )
+        else:
+            cursor.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', (key, str(value)))
+        conn.commit()
+        conn.close()
+
+    def increment_blocked_count(self):
+        conn = self.get_conn()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE settings SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'blocked_count'")
+        conn.commit()
+        conn.close()
+
+    def insert_message(self, student_name: str, message: str, sentiment: str, status: str) -> int:
+        conn = self.get_conn()
+        cursor = conn.cursor()
+        if self.is_postgres:
+            cursor.execute(
+                'INSERT INTO messages (student_name, message, sentiment, status) VALUES (%s, %s, %s, %s) RETURNING id',
+                (student_name, message, sentiment, status)
+            )
+            msg_id = cursor.fetchone()[0]
+        else:
+            cursor.execute(
+                'INSERT INTO messages (student_name, message, sentiment, status) VALUES (?, ?, ?, ?)',
+                (student_name, message, sentiment, status)
+            )
+            msg_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return msg_id
+
+    def get_all_messages(self) -> list:
+        conn = self.get_conn()
+        if self.is_postgres:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            cursor = conn.cursor()
+        cursor.execute('SELECT * FROM messages ORDER BY id DESC')
+        rows = cursor.fetchall()
+        conn.close()
+        
+        messages = []
+        for r in rows:
+            created_at = r['created_at']
+            if not isinstance(created_at, str) and created_at is not None:
+                created_at = created_at.isoformat()
+            messages.append({
+                'id': r['id'],
+                'student_name': r['student_name'],
+                'message': r['message'],
+                'sentiment': r['sentiment'],
+                'status': r['status'],
+                'created_at': created_at
+            })
+        return messages
+
+    def approve_message(self, msg_id: int) -> dict:
+        conn = self.get_conn()
+        if self.is_postgres:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor.execute('SELECT * FROM messages WHERE id = %s', (msg_id,))
+            row = cursor.fetchone()
+            if not row:
+                conn.close()
+                return None
+            cursor.execute("UPDATE messages SET status = 'approved' WHERE id = %s", (msg_id,))
+        else:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM messages WHERE id = ?', (msg_id,))
+            row = cursor.fetchone()
+            if not row:
+                conn.close()
+                return None
+            cursor.execute("UPDATE messages SET status = 'approved' WHERE id = ?", (msg_id,))
+        conn.commit()
+        conn.close()
+        return dict(row)
+
+    def reject_message(self, msg_id: int) -> bool:
+        conn = self.get_conn()
+        cursor = conn.cursor()
+        if self.is_postgres:
+            cursor.execute('SELECT id FROM messages WHERE id = %s', (msg_id,))
+            row = cursor.fetchone()
+            if not row:
+                conn.close()
+                return False
+            cursor.execute('DELETE FROM messages WHERE id = %s', (msg_id,))
+        else:
+            cursor.execute('SELECT id FROM messages WHERE id = ?', (msg_id,))
+            row = cursor.fetchone()
+            if not row:
+                conn.close()
+                return False
+            cursor.execute('DELETE FROM messages WHERE id = ?', (msg_id,))
+        conn.commit()
+        conn.close()
+        return True
+
+    def get_approved_messages(self) -> list:
+        conn = self.get_conn()
+        if self.is_postgres:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor.execute("SELECT id, student_name, message, sentiment FROM messages WHERE status = 'approved' ORDER BY id ASC")
+        else:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, student_name, message, sentiment FROM messages WHERE status = 'approved' ORDER BY id ASC")
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+    def get_stats(self) -> dict:
+        conn = self.get_conn()
+        cursor = conn.cursor()
+        if self.is_postgres:
+            cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'approved'")
+            approved = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'pending'")
+            pending = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'blocked'")
+            blocked = cursor.fetchone()[0]
+        else:
+            cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'approved'")
+            approved = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'pending'")
+            pending = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'blocked'")
+            blocked = cursor.fetchone()[0]
+        conn.close()
+        return {
+            'total_submitted': approved + pending + blocked,
+            'total_approved': approved,
+            'total_pending': pending,
+            'total_blocked': blocked
+        }
+
+    def clear_tree(self):
+        conn = self.get_conn()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM messages')
+        conn.commit()
+        conn.close()
+        self.set_setting('blocked_count', '0')
+
+db = DatabaseManager()
+db.init_db()
+
+# Expose global helpers to avoid changing all calls to db.get_setting
 def get_setting(key: str, default: str = "") -> str:
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute('SELECT value FROM settings WHERE key = ?', (key,))
-    row = cursor.fetchone()
-    conn.close()
-    if row:
-        return row['value']
-    return default
+    return db.get_setting(key, default)
 
 def set_setting(key: str, value: str):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', (key, str(value)))
-    conn.commit()
-    conn.close()
+    db.set_setting(key, value)
 
 def increment_blocked_count():
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE settings SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'blocked_count'")
-    conn.commit()
-    conn.close()
+    db.increment_blocked_count()
 
 def get_local_ip() -> str:
     """Gets the local IP address of the machine to print out the link for student phones."""
@@ -143,15 +343,7 @@ async def submit_message(sub: Submission):
             
         harm_info = f"{analysis.get('harm_category', 'UNKNOWN')} [{analysis.get('harm_level', '?')}]"
         
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute(
-            'INSERT INTO messages (student_name, message, sentiment, status) VALUES (?, ?, ?, ?)',
-            (student_name, msg_text, f"negative|{harm_info}", 'blocked')
-        )
-        conn.commit()
-        conn.close()
-        
+        db.insert_message(student_name, msg_text, f"negative|{harm_info}", 'blocked')
         increment_blocked_count()
         
         return {
@@ -167,15 +359,7 @@ async def submit_message(sub: Submission):
     if not student_name:
         student_name = "Anonymous Student"
         
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute(
-        'INSERT INTO messages (student_name, message, sentiment, status) VALUES (?, ?, ?, ?)',
-        (student_name, msg_text, analysis['sentiment'], status)
-    )
-    msg_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
+    msg_id = db.insert_message(student_name, msg_text, analysis['sentiment'], status)
     
     new_msg_data = {
         'id': msg_id,
@@ -215,41 +399,17 @@ async def get_admin_messages(token: str = None):
     if token != 'sfs_secret_session_token':
         raise HTTPException(status_code=403, detail='Unauthorized access.')
         
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM messages ORDER BY id DESC')
-    rows = cursor.fetchall()
-    conn.close()
-    
-    messages = []
-    for r in rows:
-        messages.append({
-            'id': r['id'],
-            'student_name': r['student_name'],
-            'message': r['message'],
-            'sentiment': r['sentiment'],
-            'status': r['status'],
-            'created_at': r['created_at']
-        })
-    return messages
+    return db.get_all_messages()
 
 @app.post("/api/admin/approve/{msg_id}")
 async def approve_message(msg_id: int, token: str = None):
     if token != 'sfs_secret_session_token':
         raise HTTPException(status_code=403, detail='Unauthorized access.')
         
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM messages WHERE id = ?', (msg_id,))
-    row = cursor.fetchone()
+    row = db.approve_message(msg_id)
     if not row:
-        conn.close()
         raise HTTPException(status_code=404, detail='Message not found.')
         
-    cursor.execute("UPDATE messages SET status = 'approved' WHERE id = ?", (msg_id,))
-    conn.commit()
-    conn.close()
-    
     msg_data = {
         'id': row['id'],
         'student_name': row['student_name'],
@@ -274,18 +434,10 @@ async def reject_message(msg_id: int, token: str = None):
     if token != 'sfs_secret_session_token':
         raise HTTPException(status_code=403, detail='Unauthorized access.')
         
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM messages WHERE id = ?', (msg_id,))
-    row = cursor.fetchone()
-    if not row:
-        conn.close()
+    success = db.reject_message(msg_id)
+    if not success:
         raise HTTPException(status_code=404, detail='Message not found.')
         
-    cursor.execute('DELETE FROM messages WHERE id = ?', (msg_id,))
-    conn.commit()
-    conn.close()
-    
     await manager.broadcast({
         'type': 'delete_message',
         'data': {
@@ -322,47 +474,14 @@ async def toggle_activation(req: ActivationRequest, token: str = None):
 @app.get("/api/messages")
 async def get_approved_messages():
     """Gets approved messages for display initialization."""
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, student_name, message, sentiment FROM messages WHERE status = 'approved' ORDER BY id ASC")
-    rows = cursor.fetchall()
-    conn.close()
-    
-    messages = []
-    for r in rows:
-        messages.append({
-            'id': r['id'],
-            'student_name': r['student_name'],
-            'message': r['message'],
-            'sentiment': r['sentiment']
-        })
-    return messages
+    return db.get_approved_messages()
 
 @app.get("/api/admin/stats")
 async def get_admin_stats(token: str = None):
     if token != 'sfs_secret_session_token':
         raise HTTPException(status_code=403, detail='Unauthorized access.')
         
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'approved'")
-    approved = cursor.fetchone()[0]
-    
-    cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'pending'")
-    pending = cursor.fetchone()[0]
-    
-    cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'blocked'")
-    blocked = cursor.fetchone()[0]
-    
-    conn.close()
-    
-    return {
-        'total_submitted': approved + pending + blocked,
-        'total_approved': approved,
-        'total_pending': pending,
-        'total_blocked': blocked
-    }
+    return db.get_stats()
 
 @app.post("/api/admin/config")
 async def update_config(data: dict, token: str = None):
@@ -377,12 +496,7 @@ async def update_config(data: dict, token: str = None):
         set_setting('auto_approve_positive', val)
         
     if 'clear_tree' in data and data['clear_tree']:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute('DELETE FROM messages')
-        conn.commit()
-        conn.close()
-        set_setting('blocked_count', '0')
+        db.clear_tree()
         await manager.broadcast({
             'type': 'clear_tree'
         })

@@ -66,13 +66,11 @@
 
             0%,
             100% {
-                filter:
-                    drop-shadow(0 0 8px rgba(178, 202, 250, 0.7)) drop-shadow(0 0 20px rgba(255, 172, 179, 0.4));
+                filter: drop-shadow(0 0 8px rgba(178, 202, 250, 0.7)) drop-shadow(0 0 20px rgba(255, 172, 179, 0.4));
             }
 
             50% {
-                filter:
-                    drop-shadow(0 0 16px rgba(178, 202, 250, 1.0)) drop-shadow(0 0 36px rgba(255, 172, 179, 0.7));
+                filter: drop-shadow(0 0 16px rgba(178, 202, 250, 1.0)) drop-shadow(0 0 36px rgba(255, 172, 179, 0.7));
             }
         }
 
@@ -83,8 +81,6 @@
             margin-top: 10px;
             text-transform: uppercase;
             font-weight: 500;
-
-            /* Pill-shaped tinted badge specifically for the subtitle text */
             display: inline-block;
             background: rgba(0, 242, 254, 0.08);
             border: 1px solid rgba(0, 242, 254, 0.18);
@@ -108,76 +104,390 @@
             }
         }
 
-        /* Inauguration prompt */
-        .prompt-box {
+        /* ══════════════════════════════════════
+           LOGO SPLASH SCREEN (idle / waiting)
+           ══════════════════════════════════════ */
+        #logo-splash {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            inset: 0;
             z-index: 20;
-            padding: 30px 50px;
-            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 1;
+            transition: opacity 1.2s ease;
             pointer-events: auto;
             cursor: pointer;
-            border-radius: 20px;
-            opacity: 0;
-            display: none;
-            transition: opacity 0.8s ease, border-color 0.3s, box-shadow 0.3s, transform 0.3s;
-            box-shadow: 0 0 20px rgba(0, 242, 254, 0.15);
         }
 
-        .prompt-box:hover {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(0, 242, 254, 0.6);
-            box-shadow: 0 0 35px rgba(0, 242, 254, 0.45);
-            transform: translate(-50%, -50%) scale(1.04);
-        }
-
-        .prompt-key {
-            display: inline-block;
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid var(--primary);
-            color: var(--primary);
-            border-radius: 8px;
-            padding: 8px 20px;
-            font-family: var(--font-sans);
-            font-weight: 700;
-            font-size: 1.3rem;
-            margin: 15px 0;
-            text-shadow: 0 0 10px rgba(0, 242, 254, 0.4);
-            box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
-        }
-
-
-        /* Portal Call to Action details */
-        .portal-cta {
+        #logo-splash::before {
+            content: '';
             position: absolute;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10;
-            font-size: 1rem;
-            color: rgba(255, 255, 255, 0.5);
-            letter-spacing: 1.5px;
-            text-align: center;
+            inset: 0;
+            background: radial-gradient(ellipse at 50% 45%, rgba(10, 20, 55, 0.90) 0%, rgba(5, 6, 18, 0.99) 65%);
+            z-index: 1;
+            transition: opacity 2.5s cubic-bezier(0.25, 1, 0.5, 1);
+            opacity: 1;
+        }
+
+        #logo-splash.morphing::before {
+            opacity: 0;
+        }
+
+        #logo-splash.hidden {
+            opacity: 0;
             pointer-events: none;
-            width: 100%;
         }
 
-        .portal-cta span {
-            color: var(--primary);
-            font-weight: 600;
-            text-shadow: var(--text-glow);
+        #logo-splash.morphing #anim-canvas {
+            opacity: 0;
+            transition: opacity 2.5s ease;
         }
 
-        /* Sound Effect Indicator */
+        /* Ensure all content elements sit above the pseudo background */
+        .logo-stage,
+        .splash-college-name,
+        .splash-event-name,
+        .splash-cta {
+            position: relative;
+            z-index: 2;
+        }
+
+        /* ── 3-second countdown after chief guest presses the key ── */
+        #logo-splash.morphing .splash-logo-img {
+            animation: logo-morph-out 3s cubic-bezier(0.25, 1, 0.5, 1) forwards !important;
+        }
+
+        #logo-splash.morphing .ring-1 {
+            animation: ring-activate 3s forwards !important;
+            border-color: rgba(0, 242, 254, 1) !important;
+            box-shadow: 0 0 50px rgba(0, 242, 254, 0.9), 0 0 100px rgba(0, 242, 254, 0.4) !important;
+        }
+
+        #logo-splash.morphing .ring-2 {
+            animation: ring-activate 3s 0.2s forwards !important;
+            border-color: rgba(217, 70, 239, 0.9) !important;
+            box-shadow: 0 0 40px rgba(217, 70, 239, 0.8) !important;
+        }
+
+        #logo-splash.morphing .ring-3 {
+            animation: ring-activate 3s 0.4s forwards !important;
+        }
+
+        #logo-splash.morphing .splash-cta,
+        #logo-splash.morphing .splash-college-name,
+        #logo-splash.morphing .splash-event-name {
+            animation: text-fade-out 1.2s forwards !important;
+        }
+
+        @keyframes logo-morph-out {
+            0% {
+                transform: translate(0, 0) scale(1);
+                filter: drop-shadow(0 0 50px rgba(0, 242, 254, 0.85)) drop-shadow(0 0 110px rgba(217, 70, 239, 0.6));
+            }
+
+            30% {
+                transform: translate(0, 0) scale(1.12);
+                filter: drop-shadow(0 0 80px rgba(0, 242, 254, 1.0)) drop-shadow(0 0 160px rgba(217, 70, 239, 0.9));
+            }
+
+            60% {
+                transform: translate(0, 0) scale(1.18);
+                filter: drop-shadow(0 0 100px rgba(255, 255, 255, 1)) drop-shadow(0 0 200px rgba(0, 242, 254, 1));
+            }
+
+            80% {
+                transform: translate(calc(var(--morph-x, 0px) * 0.8), calc(var(--morph-y, 20px) * 0.8)) scale(0.55);
+                filter: drop-shadow(0 0 60px rgba(200, 160, 30, 1));
+                border-radius: 50%;
+            }
+
+            95% {
+                transform: translate(calc(var(--morph-x, 0px) * 0.95), calc(var(--morph-y, 20px) * 0.95)) scale(0.12);
+                opacity: 0.6;
+            }
+
+            100% {
+                transform: translate(var(--morph-x, 0px), var(--morph-y, 20px)) scale(0.04);
+                opacity: 0;
+            }
+        }
+
+        @keyframes ring-activate {
+            0% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: translate(-50%, -50%) scale(1.15);
+                opacity: 0.9;
+            }
+
+            75% {
+                transform: translate(-50%, -50%) scale(1.5);
+                opacity: 0.4;
+            }
+
+            100% {
+                transform: translate(-50%, -50%) scale(2.2);
+                opacity: 0;
+            }
+        }
+
+        @keyframes text-fade-out {
+            0% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0;
+            }
+        }
+
+        /* Full-screen animation canvas (rays, orbits, sweep) */
+        #anim-canvas {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* Single unified wrapper — logo lives INSIDE the rings */
+        .logo-stage {
+            position: relative;
+            width: 620px;
+            height: 620px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-bottom: 20px;
+            z-index: 2;
+        }
+
+        /* Glow disc backdrop that makes logo pop */
+        .logo-stage::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 440px;
+            height: 440px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(0, 80, 130, 0.6) 0%, rgba(0, 40, 80, 0.25) 50%, transparent 72%);
+            z-index: 1;
+        }
+
+        /* CSS rings positioned relative to .logo-stage center */
+        .ring {
+            position: absolute;
+            border-radius: 50%;
+            border: 1.5px solid transparent;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            animation: ring-pulse 3.2s ease-in-out infinite;
+        }
+
+        .ring-1 {
+            width: 380px;
+            height: 380px;
+            border-color: rgba(0, 242, 254, 0.7);
+            box-shadow: 0 0 22px rgba(0, 242, 254, 0.25), inset 0 0 22px rgba(0, 242, 254, 0.1);
+            animation-delay: 0s;
+        }
+
+        .ring-2 {
+            width: 460px;
+            height: 460px;
+            border-color: rgba(217, 70, 239, 0.45);
+            box-shadow: 0 0 16px rgba(217, 70, 239, 0.18), inset 0 0 16px rgba(217, 70, 239, 0.08);
+            animation-delay: 0.75s;
+        }
+
+        .ring-3 {
+            width: 550px;
+            height: 550px;
+            border-color: rgba(0, 242, 254, 0.22);
+            animation-delay: 1.5s;
+        }
+
+        @keyframes ring-pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            50% {
+                opacity: 0.45;
+                transform: translate(-50%, -50%) scale(1.03);
+            }
+        }
+
+        /* Logo image — centered in .logo-stage */
+        .splash-logo-img {
+            width: 400px;
+            height: 400px;
+            object-fit: contain;
+            border-radius: 50%;
+            position: relative;
+            z-index: 3;
+            filter: drop-shadow(0 0 50px rgba(0, 242, 254, 0.85)) drop-shadow(0 0 110px rgba(217, 70, 239, 0.6));
+            animation: logo-breathe 4.5s ease-in-out infinite;
+        }
+
+        @keyframes logo-breathe {
+
+            0%,
+            100% {
+                transform: scale(1);
+                filter: drop-shadow(0 0 30px rgba(0, 242, 254, 0.75)) drop-shadow(0 0 70px rgba(217, 70, 239, 0.5));
+            }
+
+            50% {
+                transform: scale(1.04);
+                filter: drop-shadow(0 0 50px rgba(0, 242, 254, 1.0)) drop-shadow(0 0 100px rgba(217, 70, 239, 0.75));
+            }
+        }
+
+        /* College name */
+        .splash-college-name {
+            font-family: var(--font-serif);
+            font-size: 3.2rem;
+            font-weight: 800;
+            letter-spacing: 4px;
+            text-align: center;
+            background: linear-gradient(135deg, #e8f4ff, #ffd6e0, #c8f0ff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            z-index: 2;
+            animation: text-glow-pulse 4s ease-in-out infinite;
+        }
+
+        .splash-event-name {
+            font-size: 2.4rem;
+            letter-spacing: 9px;
+            color: rgba(0, 242, 254, 0.9);
+            text-transform: uppercase;
+            font-weight: 500;
+            margin-bottom: 44px;
+            text-shadow: 0 0 14px rgba(0, 242, 254, 0.7);
+            padding: 5px 22px;
+            border: 1px solid rgba(0, 242, 254, 0.3);
+            border-radius: 30px;
+            background: rgba(0, 242, 254, 0.06);
+            z-index: 2;
+            animation: subtitle-shimmer 4s ease-in-out 0.5s infinite;
+        }
+
+        /* CTA */
+        .splash-cta {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            z-index: 2;
+        }
+
+        .splash-cta-text {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.4);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        .splash-key-badge {
+            display: inline-block;
+            background: rgba(0, 242, 254, 0.07);
+            border: 2px solid rgba(0, 242, 254, 0.5);
+            color: rgba(0, 242, 254, 0.95);
+            border-radius: 10px;
+            padding: 11px 34px;
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            animation: badge-pulse 2.4s ease-in-out infinite;
+        }
+
+        @keyframes badge-pulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 18px rgba(0, 242, 254, 0.2);
+                border-color: rgba(0, 242, 254, 0.5);
+            }
+
+            50% {
+                box-shadow: 0 0 36px rgba(0, 242, 254, 0.65);
+                border-color: rgba(0, 242, 254, 1.0);
+            }
+        }
+
+        /* ══════════════════════════════════════
+           TOP-LEFT WATERMARK (after activation)
+           ══════════════════════════════════════ */
+        #logo-watermark {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 15;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1.5s ease 0.5s;
+        }
+
+        #logo-watermark.visible {
+            opacity: 1;
+        }
+
+        .watermark-img {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+            border-radius: 50%;
+            filter: drop-shadow(0 0 8px rgba(0, 242, 254, 0.5));
+        }
+
+        .watermark-text {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.2;
+        }
+
+        .watermark-text span:first-child {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.9);
+            letter-spacing: 1px;
+        }
+
+        .watermark-text span:last-child {
+            font-size: 0.68rem;
+            color: rgba(0, 242, 254, 0.75);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        /* Sound button */
         .sound-indicator {
             position: absolute;
             bottom: 30px;
             right: 30px;
             z-index: 10;
             background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(45, 45, 45, 0.121);
+            border: 1px solid rgba(45, 45, 45, 0.15);
             border-radius: 50%;
             width: 44px;
             height: 44px;
@@ -213,18 +523,39 @@
             <div class="hud-subtitle">SFS COLLEGE · DEEKSHARAMBHA 2K26</div>
         </div>
 
-        <!-- Waiting/Prompt Screen -->
-        <div id="activation-prompt" class="prompt-box glass-panel" onclick="triggerActivation()"
-            style="display: none; opacity: 0;">
-            <h2 style="font-size: 1.4rem; font-weight: 500; letter-spacing: 1px;">WELCOME CHIEF GUEST</h2>
-            <p style="color: var(--text-muted); font-size: 0.95rem; margin-top: 5px;">Click here or press Spacebar to
-                reveal the Dream Tree</p>
-            <div class="prompt-key" id="prompt-key-label">SPACEBAR</div>
+        <!-- Top-left watermark (appears after activation) -->
+        <div id="logo-watermark">
+            <img src="/static/logo.png" class="watermark-img" alt="SFS Logo">
+            <div class="watermark-text">
+                <span>St. Francis De Sales College (Autonomous)</span>
+                <span>Deeksharambha 2K26</span>
+            </div>
         </div>
 
+        <!-- ═══════════════════════════════════════════════
+             LOGO SPLASH — Idle / Waiting screen
+             ═══════════════════════════════════════════════ -->
+        <div id="logo-splash" onclick="triggerActivation()">
+            <!-- Full-screen animation canvas: rays, orbits, sweep, particles -->
+            <canvas id="anim-canvas"></canvas>
 
+            <!-- Unified stage: logo + rings in one centered block -->
+            <div class="logo-stage">
+                <div class="ring ring-3"></div>
+                <div class="ring ring-2"></div>
+                <div class="ring ring-1"></div>
+                <img src="/static/logo.png" class="splash-logo-img" alt="SFS College Logo">
+            </div>
 
-        <!-- Submission directions overlay removed -->
+            <!-- College name & event -->
+            <div class="splash-college-name">St. Francis De Sales College (Autonomous)</div>
+            <div class="splash-event-name">Deeksharambha 2K26</div>
+
+            <!-- Activation CTA -->
+            <div class="splash-cta">
+                <div class="splash-key-badge">INAUGURATE</div>
+            </div>
+        </div>
 
         <!-- Sound controller toggler -->
         <div class="sound-indicator" id="sound-btn" onclick="toggleSound()"
@@ -242,106 +573,227 @@
     <script>
         let soundMuted = false;
 
-        // Populate the client IP URL in display CTA bar
+        /* ══════════════════════════════════════════════════════════
+           RICH ANIMATION ENGINE — rays, orbits, sweep, particles
+           ══════════════════════════════════════════════════════════ */
+        (function initAnimCanvas() {
+            const canvas = document.getElementById('anim-canvas');
+            const ctx = canvas.getContext('2d');
+            let W, H, cx, cy, t = 0;
+
+            /* Background drifting stars */
+            const stars = Array.from({ length: 120 }, () => ({
+                x: Math.random(), y: Math.random(),
+                r: Math.random() * 1.6 + 0.3,
+                a: Math.random() * 0.8 + 0.1,
+                spd: (Math.random() - 0.5) * 0.00015
+            }));
+
+            /* Orbiting glowing particles at 3 orbit radii — scaled to match bigger rings */
+            const orbiters = [
+                ...Array.from({ length: 10 }, (_, i) => ({ angle: (i / 10) * Math.PI * 2, r: 200, spd: 0.008, size: 4, col: [0, 242, 254] })),
+                ...Array.from({ length: 14 }, (_, i) => ({ angle: (i / 14) * Math.PI * 2, r: 252, spd: -0.006, size: 3, col: [217, 70, 239] })),
+                ...Array.from({ length: 8 }, (_, i) => ({ angle: (i / 8) * Math.PI * 2, r: 300, spd: 0.004, size: 2.5, col: [16, 185, 129] })),
+            ];
+
+            /* Sparkle burst particles (random re-spawn at ring edges) */
+            const sparks = Array.from({ length: 50 }, () => makeSpark());
+            function makeSpark() {
+                const ring = [200, 252, 300][Math.floor(Math.random() * 3)];
+                const a = Math.random() * Math.PI * 2;
+                return {
+                    x: Math.cos(a) * ring, y: Math.sin(a) * ring,
+                    vx: (Math.random() - 0.5) * 1.2, vy: (Math.random() - 0.5) * 1.2 - 0.4,
+                    life: 1.0, decay: 0.008 + Math.random() * 0.012,
+                    r: Math.random() * 2 + 0.5,
+                    col: [[0, 242, 254], [217, 70, 239], [16, 185, 129]][Math.floor(Math.random() * 3)]
+                };
+            }
+
+            function resize() {
+                W = canvas.width = window.innerWidth;
+                H = canvas.height = window.innerHeight;
+                cx = W / 2; cy = H / 2;
+            }
+            resize();
+            window.addEventListener('resize', resize);
+
+            function draw() {
+                const splash = document.getElementById('logo-splash');
+                if (!splash || splash.classList.contains('hidden')) return;
+
+                ctx.clearRect(0, 0, W, H);
+                t += 0.016;
+
+                /* 1 ─ Drifting background stars */
+                stars.forEach(s => {
+                    s.a += s.spd;
+                    if (s.a <= 0.05 || s.a >= 0.9) s.spd *= -1;
+                    ctx.beginPath();
+                    ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(180,220,255,${s.a})`;
+                    ctx.fill();
+                });
+
+                /* 2 ─ Rotating light rays (starburst behind logo) */
+                ctx.save();
+                ctx.translate(cx, cy);
+                const numRays = 18;
+                for (let i = 0; i < numRays; i++) {
+                    const angle = (i / numRays) * Math.PI * 2 + t * 0.18;
+                    const rayLen = 300 + Math.sin(t * 1.3 + i) * 40;
+                    const alpha = 0.04 + Math.sin(t * 0.9 + i * 0.7) * 0.02;
+                    const grad = ctx.createLinearGradient(0, 0, Math.cos(angle) * rayLen, Math.sin(angle) * rayLen);
+                    grad.addColorStop(0, `rgba(0,242,254,${alpha * 4})`);
+                    grad.addColorStop(0.4, `rgba(0,200,240,${alpha})`);
+                    grad.addColorStop(1, `rgba(0,100,180,0)`);
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(Math.cos(angle) * rayLen, Math.sin(angle) * rayLen);
+                    ctx.lineWidth = 2.5;
+                    ctx.strokeStyle = grad;
+                    ctx.stroke();
+                }
+                /* Counter-rotating secondary rays (magenta) */
+                for (let i = 0; i < 10; i++) {
+                    const angle = (i / 10) * Math.PI * 2 - t * 0.12;
+                    const rayLen = 220 + Math.sin(t * 1.7 + i * 1.2) * 30;
+                    const alpha = 0.03 + Math.sin(t + i) * 0.015;
+                    const grad2 = ctx.createLinearGradient(0, 0, Math.cos(angle) * rayLen, Math.sin(angle) * rayLen);
+                    grad2.addColorStop(0, `rgba(217,70,239,${alpha * 3})`);
+                    grad2.addColorStop(0.5, `rgba(180,40,200,${alpha})`);
+                    grad2.addColorStop(1, 'rgba(100,0,150,0)');
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(Math.cos(angle) * rayLen, Math.sin(angle) * rayLen);
+                    ctx.lineWidth = 1.8;
+                    ctx.strokeStyle = grad2;
+                    ctx.stroke();
+                }
+                ctx.restore();
+
+
+
+                /* 4 ─ Orbiting particles */
+                ctx.save();
+                ctx.translate(cx, cy);
+                orbiters.forEach(o => {
+                    o.angle += o.spd;
+                    const px = Math.cos(o.angle) * o.r;
+                    const py = Math.sin(o.angle) * o.r;
+                    const pulse = 0.7 + 0.3 * Math.sin(t * 3 + o.angle);
+                    ctx.beginPath();
+                    ctx.arc(px, py, o.size * pulse, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(${o.col[0]},${o.col[1]},${o.col[2]},${0.85 * pulse})`;
+                    ctx.shadowBlur = 12;
+                    ctx.shadowColor = `rgba(${o.col[0]},${o.col[1]},${o.col[2]},0.8)`;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                });
+                ctx.restore();
+
+                /* 5 ─ Spark burst particles */
+                ctx.save();
+                ctx.translate(cx, cy);
+                for (let i = sparks.length - 1; i >= 0; i--) {
+                    const s = sparks[i];
+                    s.x += s.vx; s.y += s.vy;
+                    s.vy -= 0.012; // subtle float upward
+                    s.life -= s.decay;
+                    if (s.life <= 0) { sparks[i] = makeSpark(); continue; }
+                    ctx.beginPath();
+                    ctx.arc(s.x, s.y, s.r * s.life, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(${s.col[0]},${s.col[1]},${s.col[2]},${s.life * 0.9})`;
+                    ctx.fill();
+                }
+                ctx.restore();
+                requestAnimationFrame(draw);
+            }
+            draw();
+        })();
+
+        /* ── Populate key label from server ── */
         async function fetchCTAConfig() {
             try {
                 const response = await fetch("/api/status");
                 if (response.ok) {
                     const data = await response.json();
-
-                    // Update key visual prompt label
-                    const keyLabel = document.getElementById("prompt-key-label");
-                    keyLabel.textContent = data.activation_key.toUpperCase();
-
-                    // Update host IP url details
-                    const hostIP = window.location.hostname;
-                    const port = window.location.port ? `:${window.location.port}` : '';
-                    const ctaLink = document.getElementById("cta-link");
-                    if (ctaLink) {
-                        ctaLink.textContent = `http://${hostIP}${port}/`;
+                    const keyHint = document.getElementById("prompt-key-hint");
+                    if (keyHint) {
+                        const keyName = (data.activation_key || 'Space').toUpperCase();
+                        keyHint.textContent = `Press ${keyName === 'SPACE' ? 'SPACEBAR' : keyName} to start`;
                     }
 
-                    if (data.is_activated) {
-                        hidePrompt();
-                    }
+                    if (data.is_activated) hideSplash();
                 }
-            } catch (err) {
-                console.error("CTA loading error:", err);
-            }
+            } catch (err) { console.error("CTA loading error:", err); }
         }
 
-        // Polling checking activation states
+        /* ── Polling: only syncs key label and instant-hide if already activated ── */
         setInterval(async () => {
             try {
                 const response = await fetch("/api/status");
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.is_activated) {
-                        hidePrompt();
-                    } else {
-                        if (window.tree && window.tree.activationStage !== 'blank') {
-                            showPrompt();
-                        }
+                    const kh = document.getElementById("prompt-key-hint");
+                    if (kh) {
+                        const keyName = (data.activation_key || (window.tree && tree.activationKey) || 'Space').toUpperCase();
+                        kh.textContent = `Press ${keyName === 'SPACE' ? 'SPACEBAR' : keyName} to start`;
+                    }
+                    // Only auto-hide if tree is still in welcome stage (not mid-animation)
+                    if (data.is_activated && tree && !tree.isActivated) {
+                        // Already active from DB — tree.js handles instant raining
                     }
                 }
             } catch (err) { }
-        }, 2000);
+        }, 4000);
 
-        function hidePrompt() {
-            const prompt = document.getElementById("activation-prompt");
-            if (prompt && prompt.style.display !== "none") {
-                prompt.style.opacity = "0";
-                setTimeout(() => {
-                    prompt.style.display = "none";
-                }, 800);
-            }
-        }
-
-        function showPrompt() {
-            const prompt = document.getElementById("activation-prompt");
-            if (prompt && prompt.style.display === "none") {
-                prompt.style.display = "block";
-                setTimeout(() => {
-                    prompt.style.opacity = "1";
-                }, 50);
+        function hideSplash() {
+            const splash = document.getElementById("logo-splash");
+            if (splash && !splash.classList.contains('hidden')) {
+                splash.classList.add('hidden');
             }
             const soundBtn = document.getElementById("sound-btn");
-            if (soundBtn) {
-                soundBtn.style.opacity = "1";
-                soundBtn.style.pointerEvents = "auto";
+            if (soundBtn) { soundBtn.style.opacity = "1"; soundBtn.style.pointerEvents = "auto"; }
+        }
+
+        function showSplash() {
+            const splash = document.getElementById("logo-splash");
+            const activeStages = ['logo_active', 'seed', 'seedling', 'seedling_wait', 'growing', 'title', 'raining'];
+            if (splash && splash.classList.contains('hidden') && window.tree && !activeStages.includes(window.tree.activationStage)) {
+                splash.classList.remove('hidden');
             }
         }
+
+        // Stubs for tree.js compatibility
+        function hidePrompt() { hideSplash(); }
+        function showPrompt() { /* splash is visible by default */ }
 
         function toggleSound() {
             soundMuted = !soundMuted;
             const svg = document.getElementById("sound-svg");
-
             if (soundMuted) {
-                // Change icon to muted speaker
                 svg.innerHTML = `<path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.21.05-.42.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>`;
-                // Override audio functions
                 synth.playInaugurationBoom = () => { };
                 synth.playChime = () => { };
                 synth.playCardWhoosh = () => { };
             } else {
-                // Restore icon to speaker waves
                 svg.innerHTML = `<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>`;
-                // Restore logic
                 delete synth.playInaugurationBoom;
                 delete synth.playChime;
                 delete synth.playCardWhoosh;
             }
         }
 
-        // Called by tree.js after grow animation completes — fades in the title
+        // Called by tree.js after grow animation — fades in the title & watermark
         function activateTitle() {
             const hud = document.getElementById('hud-header');
-            if (hud) {
-                hud.style.opacity = '1';
-            }
+            if (hud) hud.style.opacity = '1';
+
+            const wm = document.getElementById('logo-watermark');
+            if (wm) wm.classList.add('visible');
         }
 
-        // Initialize configs
         window.addEventListener("load", fetchCTAConfig);
     </script>
 </body>
