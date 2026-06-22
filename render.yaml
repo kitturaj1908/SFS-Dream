@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: sfs-dream-tree
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: TIDB_HOST
+        sync: false
+      - key: TIDB_PORT
+        sync: false
+      - key: TIDB_USER
+        sync: false
+      - key: TIDB_PASSWORD
+        sync: false
+      - key: TIDB_DB_NAME
+        sync: false
+      - key: TIDB_CA_PATH
+        sync: false
+      - key: TIDB_SSL_VERIFY
+        sync: false

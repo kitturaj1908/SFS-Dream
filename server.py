@@ -1,4 +1,15 @@
 import os
+
+# Load .env file if it exists
+if os.path.exists(".env"):
+    with open(".env", "r") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                parts = line.split("=", 1)
+                if len(parts) == 2:
+                    os.environ[parts[0].strip()] = parts[1].strip().strip('"').strip("'")
+
 import json
 import sqlite3
 import asyncio
@@ -18,33 +29,128 @@ STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 
 os.makedirs(STATIC_DIR, exist_ok=True)
 
-# PostgreSQL support
+# PostgreSQL / TiDB support
 DATABASE_URL = os.environ.get("DATABASE_URL")
-IS_POSTGRES = DATABASE_URL is not None
+IS_TIDB = (os.environ.get("TIDB_HOST") is not None) or (DATABASE_URL is not None and ("mysql" in DATABASE_URL or "tidb" in DATABASE_URL))
+IS_POSTGRES = (DATABASE_URL is not None) and not IS_TIDB
 
 if IS_POSTGRES:
     import psycopg2
     from psycopg2.extras import RealDictCursor
 
+if IS_TIDB:
+    import pymysql
+
 class DatabaseManager:
     def __init__(self):
         self.is_postgres = IS_POSTGRES
+        self.is_tidb = IS_TIDB
         self.db_url = DATABASE_URL
-        if self.is_postgres and self.db_url.startswith("postgres://"):
+        if self.is_postgres and self.db_url and self.db_url.startswith("postgres://"):
             self.db_url = self.db_url.replace("postgres://", "postgresql://", 1)
 
     def get_conn(self):
-        if self.is_postgres:
+        if self.is_tidb:
+            if self.db_url and ("mysql" in self.db_url or "tidb" in self.db_url):
+                import urllib.parse as urlparse
+                url = urlparse.urlparse(self.db_url)
+                host = url.hostname
+                port = url.port or 4000
+                user = urlparse.unquote(url.username) if url.username else None
+                password = urlparse.unquote(url.password) if url.password else None
+                dbname = urlparse.unquote(url.path.lstrip('/')) if url.path else "dreams"
+            else:
+                host = os.environ.get("TIDB_HOST")
+                port = int(os.environ.get("TIDB_PORT", "4000"))
+                user = os.environ.get("TIDB_USER")
+                password = os.environ.get("TIDB_PASSWORD")
+                dbname = os.environ.get("TIDB_DB_NAME", "dreams")
+            
+            import ssl
+            # Create a default secure SSL Context (trusts system root CAs, works out-of-the-box on Render)
+            ssl_ctx = ssl.create_default_context()
+            
+            # Fallback to custom CA path if provided and exists
+            ca_path = os.environ.get("TIDB_CA_PATH")
+            if ca_path and os.path.exists(ca_path):
+                ssl_ctx.load_verify_locations(cafile=ca_path)
+            
+            # Support disabling SSL hostname/certificate validation if TIDB_SSL_VERIFY is "false"
+            if os.environ.get("TIDB_SSL_VERIFY") == "false":
+                ssl_ctx.check_hostname = False
+                ssl_ctx.verify_mode = ssl.CERT_NONE
+
+            return pymysql.connect(
+                host=host,
+                port=port,
+                user=user,
+                password=password,
+                database=dbname,
+                ssl=ssl_ctx,
+                autocommit=True
+            )
+        elif self.is_postgres:
             return psycopg2.connect(self.db_url)
         else:
             conn = sqlite3.connect(DB_PATH)
             conn.row_factory = sqlite3.Row
             return conn
 
+    def get_db_host(self) -> str:
+        if self.is_tidb:
+            if self.db_url and ("mysql" in self.db_url or "tidb" in self.db_url):
+                import urllib.parse as urlparse
+                try:
+                    url = urlparse.urlparse(self.db_url)
+                    return url.hostname or "TiDB Cloud"
+                except Exception:
+                    return "TiDB Cloud"
+            return os.environ.get("TIDB_HOST") or "TiDB Cloud"
+        elif self.is_postgres:
+            if self.db_url:
+                import urllib.parse as urlparse
+                try:
+                    url = urlparse.urlparse(self.db_url)
+                    return url.hostname or "PostgreSQL"
+                except Exception:
+                    return "PostgreSQL"
+            return "PostgreSQL"
+        else:
+            return "SQLite (dreams.db)"
+
     def init_db(self):
         conn = self.get_conn()
         cursor = conn.cursor()
-        if self.is_postgres:
+        if self.is_tidb:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS messages (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    student_name TEXT,
+                    message TEXT NOT NULL,
+                    sentiment TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS settings (
+                    `key` VARCHAR(255) PRIMARY KEY,
+                    value TEXT
+                )
+            """)
+            defaults = [
+                ('is_activated', 'false'),
+                ('activation_key', 'Space'),
+                ('blocked_count', '0'),
+                ('admin_password', 'sfsadmin123'),
+                ('auto_approve_positive', 'true')
+            ]
+            for key, val in defaults:
+                cursor.execute(
+                    'INSERT IGNORE INTO settings (`key`, value) VALUES (%s, %s)',
+                    (key, val)
+                )
+        elif self.is_postgres:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS messages (
                     id SERIAL PRIMARY KEY,
@@ -105,7 +211,11 @@ class DatabaseManager:
     def get_setting(self, key: str, default: str = "") -> str:
         conn = self.get_conn()
         cursor = conn.cursor()
-        if self.is_postgres:
+        if self.is_tidb:
+            cursor.execute('SELECT value FROM settings WHERE `key` = %s', (key,))
+            row = cursor.fetchone()
+            val = row[0] if row else None
+        elif self.is_postgres:
             cursor.execute('SELECT value FROM settings WHERE key = %s', (key,))
             row = cursor.fetchone()
             val = row[0] if row else None
@@ -119,7 +229,12 @@ class DatabaseManager:
     def set_setting(self, key: str, value: str):
         conn = self.get_conn()
         cursor = conn.cursor()
-        if self.is_postgres:
+        if self.is_tidb:
+            cursor.execute(
+                'REPLACE INTO settings (`key`, value) VALUES (%s, %s)',
+                (key, str(value))
+            )
+        elif self.is_postgres:
             cursor.execute(
                 'INSERT INTO settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
                 (key, str(value))
@@ -132,14 +247,25 @@ class DatabaseManager:
     def increment_blocked_count(self):
         conn = self.get_conn()
         cursor = conn.cursor()
-        cursor.execute("UPDATE settings SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'blocked_count'")
+        if self.is_tidb:
+            cursor.execute("UPDATE settings SET value = CAST(CAST(value AS SIGNED) + 1 AS CHAR) WHERE `key` = 'blocked_count'")
+        elif self.is_postgres:
+            cursor.execute("UPDATE settings SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'blocked_count'")
+        else:
+            cursor.execute("UPDATE settings SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'blocked_count'")
         conn.commit()
         conn.close()
 
     def insert_message(self, student_name: str, message: str, sentiment: str, status: str) -> int:
         conn = self.get_conn()
         cursor = conn.cursor()
-        if self.is_postgres:
+        if self.is_tidb:
+            cursor.execute(
+                'INSERT INTO messages (student_name, message, sentiment, status) VALUES (%s, %s, %s, %s)',
+                (student_name, message, sentiment, status)
+            )
+            msg_id = cursor.lastrowid
+        elif self.is_postgres:
             cursor.execute(
                 'INSERT INTO messages (student_name, message, sentiment, status) VALUES (%s, %s, %s, %s) RETURNING id',
                 (student_name, message, sentiment, status)
@@ -157,7 +283,10 @@ class DatabaseManager:
 
     def get_all_messages(self) -> list:
         conn = self.get_conn()
-        if self.is_postgres:
+        if self.is_tidb:
+            from pymysql.cursors import DictCursor
+            cursor = conn.cursor(DictCursor)
+        elif self.is_postgres:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
         else:
             cursor = conn.cursor()
@@ -182,7 +311,16 @@ class DatabaseManager:
 
     def approve_message(self, msg_id: int) -> dict:
         conn = self.get_conn()
-        if self.is_postgres:
+        if self.is_tidb:
+            from pymysql.cursors import DictCursor
+            cursor = conn.cursor(DictCursor)
+            cursor.execute('SELECT * FROM messages WHERE id = %s', (msg_id,))
+            row = cursor.fetchone()
+            if not row:
+                conn.close()
+                return None
+            cursor.execute("UPDATE messages SET status = 'approved' WHERE id = %s", (msg_id,))
+        elif self.is_postgres:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             cursor.execute('SELECT * FROM messages WHERE id = %s', (msg_id,))
             row = cursor.fetchone()
@@ -205,7 +343,14 @@ class DatabaseManager:
     def reject_message(self, msg_id: int) -> bool:
         conn = self.get_conn()
         cursor = conn.cursor()
-        if self.is_postgres:
+        if self.is_tidb:
+            cursor.execute('SELECT id FROM messages WHERE id = %s', (msg_id,))
+            row = cursor.fetchone()
+            if not row:
+                conn.close()
+                return False
+            cursor.execute('DELETE FROM messages WHERE id = %s', (msg_id,))
+        elif self.is_postgres:
             cursor.execute('SELECT id FROM messages WHERE id = %s', (msg_id,))
             row = cursor.fetchone()
             if not row:
@@ -225,7 +370,11 @@ class DatabaseManager:
 
     def get_approved_messages(self) -> list:
         conn = self.get_conn()
-        if self.is_postgres:
+        if self.is_tidb:
+            from pymysql.cursors import DictCursor
+            cursor = conn.cursor(DictCursor)
+            cursor.execute("SELECT id, student_name, message, sentiment FROM messages WHERE status = 'approved' ORDER BY id ASC")
+        elif self.is_postgres:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             cursor.execute("SELECT id, student_name, message, sentiment FROM messages WHERE status = 'approved' ORDER BY id ASC")
         else:
@@ -238,20 +387,12 @@ class DatabaseManager:
     def get_stats(self) -> dict:
         conn = self.get_conn()
         cursor = conn.cursor()
-        if self.is_postgres:
-            cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'approved'")
-            approved = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'pending'")
-            pending = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'blocked'")
-            blocked = cursor.fetchone()[0]
-        else:
-            cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'approved'")
-            approved = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'pending'")
-            pending = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'blocked'")
-            blocked = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'approved'")
+        approved = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'pending'")
+        pending = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'blocked'")
+        blocked = cursor.fetchone()[0]
         conn.close()
         return {
             'total_submitted': approved + pending + blocked,
@@ -458,6 +599,14 @@ async def get_tree_status():
         'auto_approve': get_setting('auto_approve_positive') == 'true'
     }
 
+@app.get("/api/db-info")
+async def get_db_info():
+    return {
+        'host': db.get_db_host(),
+        'is_tidb': db.is_tidb,
+        'is_postgres': db.is_postgres
+    }
+
 @app.post("/api/admin/toggle-activation")
 async def toggle_activation(req: ActivationRequest, token: str = None):
     state_str = 'true' if req.is_activated else 'false'
@@ -556,14 +705,6 @@ async def get_admin():
 
 @app.get("/display", response_class=HTMLResponse)
 async def get_display():
-    set_setting('is_activated', 'false')
-    try:
-        await manager.broadcast({
-            'type': 'activation_state',
-            'is_activated': False
-        })
-    except Exception:
-        pass
     with open(os.path.join(STATIC_DIR, 'display.html'), 'r', encoding='utf-8') as f:
         return HTMLResponse(content=f.read())
 
