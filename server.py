@@ -704,8 +704,9 @@ async def get_admin():
         return HTMLResponse(content=f.read())
 
 @app.get("/display", response_class=HTMLResponse)
+@app.get("/inauguration", response_class=HTMLResponse)
 async def get_display():
-    with open(os.path.join(STATIC_DIR, 'display.html'), 'r', encoding='utf-8') as f:
+    with open(os.path.join(STATIC_DIR, 'Inauguration.html'), 'r', encoding='utf-8') as f:
         return HTMLResponse(content=f.read())
 
 @app.get("/display-only", response_class=HTMLResponse)
