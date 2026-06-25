@@ -537,36 +537,6 @@
             </div>
         </div>
 
-        <!-- Bottom-Left DB Watermark Pill -->
-        <div id="db-watermark-pill" style="
-            position: absolute;
-            bottom: 30px;
-            left: 30px;
-            z-index: 10;
-            background: rgba(10, 11, 28, 0.45);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 30px;
-            padding: 4px 14px;
-            font-size: 0.72rem;
-            color: rgba(255, 255, 255, 0.35);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            letter-spacing: 0.5px;
-            pointer-events: none;
-            transition: all 0.5s ease;
-        ">
-            <span id="db-watermark-dot" style="
-                width: 6px;
-                height: 6px;
-                background-color: rgba(255, 255, 255, 0.3);
-                border-radius: 50%;
-                display: inline-block;
-            "></span>
-            <span id="db-watermark-label">Loading DB...</span>
-        </div>
     </div>
 
     <!-- Scripts -->
@@ -760,35 +730,8 @@
             if (wm) wm.classList.add('visible');
         }
 
-        async function fetchDbInfo() {
-            try {
-                const response = await fetch("/api/db-info");
-                if (response.ok) {
-                    const data = await response.json();
-                    const label = document.getElementById("db-watermark-label");
-                    const dot = document.getElementById("db-watermark-dot");
-                    if (data.is_tidb) {
-                        label.innerHTML = `TiDB Cloud: <strong>${data.host}</strong>`;
-                        dot.style.backgroundColor = "#00f2fe";
-                        dot.style.boxShadow = "0 0 6px #00f2fe";
-                    } else if (data.is_postgres) {
-                        label.innerHTML = `PostgreSQL: <strong>${data.host}</strong>`;
-                        dot.style.backgroundColor = "#d946ef";
-                        dot.style.boxShadow = "0 0 6px #d946ef";
-                    } else {
-                        label.innerHTML = `SQLite: <strong>${data.host}</strong>`;
-                        dot.style.backgroundColor = "#10b981";
-                        dot.style.boxShadow = "0 0 6px #10b981";
-                    }
-                }
-            } catch (err) {
-                console.error("Failed to load DB info:", err);
-            }
-        }
-
         window.addEventListener("load", () => {
             fetchCTAConfig();
-            fetchDbInfo();
         });
     </script>
 </body>
