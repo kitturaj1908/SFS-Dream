@@ -19,7 +19,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Requ
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from sentiment_rules import analyze_sentiment, clean_text
+from sentiment_rules import analyze_sentiment, clean_text, is_gibberish
 
 app = FastAPI(title='SFS College Dream Tree API')
 
@@ -475,13 +475,33 @@ async def submit_message(sub: Submission):
     if not msg_text:
         raise HTTPException(status_code=400, detail='Message cannot be empty.')
         
+    student_name = clean_text(sub.name)
+    if student_name:
+        if is_gibberish(student_name):
+            db.insert_message(student_name, msg_text, "negative|NAME_GIBBERISH [MEDIUM]", 'blocked')
+            increment_blocked_count()
+            return {
+                'status': 'filtered',
+                'message': 'Thank you for sharing your thoughts!',
+                'details': 'Name was filtered due to community standards.'
+            }
+
+        name_analysis = analyze_sentiment(student_name, safety_only=True)
+        if name_analysis['decision'] == 'rejected':
+            harm_info = f"NAME_{name_analysis.get('harm_category', 'UNKNOWN')} [{name_analysis.get('harm_level', '?')}]"
+            db.insert_message(student_name, msg_text, f"negative|{harm_info}", 'blocked')
+            increment_blocked_count()
+            return {
+                'status': 'filtered',
+                'message': 'Thank you for sharing your thoughts!',
+                'details': 'Name was filtered due to community standards.'
+            }
+    else:
+        student_name = "Anonymous Student"
+        
     analysis = analyze_sentiment(msg_text)
     
     if analysis['decision'] == 'rejected':
-        student_name = clean_text(sub.name)
-        if not student_name:
-            student_name = "Anonymous Student"
-            
         harm_info = f"{analysis.get('harm_category', 'UNKNOWN')} [{analysis.get('harm_level', '?')}]"
         
         db.insert_message(student_name, msg_text, f"negative|{harm_info}", 'blocked')
@@ -496,10 +516,6 @@ async def submit_message(sub: Submission):
     auto_approve = get_setting('auto_approve_positive', 'true') == 'true'
     status = 'approved' if auto_approve else 'pending'
     
-    student_name = clean_text(sub.name)
-    if not student_name:
-        student_name = "Anonymous Student"
-        
     msg_id = db.insert_message(student_name, msg_text, analysis['sentiment'], status)
     
     new_msg_data = {

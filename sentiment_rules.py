@@ -360,7 +360,49 @@ def match_word_spaced_pattern(word: str, normalized: str) -> bool:
 # SECTION 7: MAIN ANALYZE FUNCTION  — POSITIVE-ONLY MODE
 # ─────────────────────────────────────────────────────────────────────────────
 
-def analyze_sentiment(text: str) -> dict:
+def replace_whitelisted_words(text: str) -> str:
+    replacements = {
+        r'\bhello\b': 'greet',
+        r'\bsharma\b': 'name',
+        r'\bdharma\b': 'name',
+        r'\bharmony\b': 'peace',
+        r'\bharmonious\b': 'peaceful',
+        r'\bharmonica\b': 'instrument',
+        r'\bharmless\b': 'safe',
+        r'\bpharmacist\b': 'doctor',
+        r'\bpharmacy\b': 'store',
+        r'\bpharmacology\b': 'science',
+        r'\bpharmaceutical\b': 'medical',
+        r'\bcharm\b': 'grace',
+        r'\bcharming\b': 'graceful',
+        r'\bshell\b': 'cover',
+        r'\bshelter\b': 'home',
+    }
+    for pattern, replacement in replacements.items():
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+    return text
+
+
+def is_gibberish(text: str) -> bool:
+    """Detects if a string is nonsensical/gibberish (e.g. 'sdfsdfs', 'aaaaa', 'ababab')."""
+    cleaned = re.sub(r'[^a-zA-Z\u0900-\u097F]', '', text)
+    if not cleaned or len(cleaned) < 2:
+        return True
+        
+    if len(set(cleaned.lower())) <= 2 and len(cleaned) > 2:
+        return True
+        
+    has_vowel_en = any(char in "aeiouyAEIOUY" for char in cleaned)
+    has_vowel_hi = any('\u0904' <= char <= '\u0914' or '\u093E' <= char <= '\u094C' or char == '\u0902' for char in cleaned)
+    
+    has_hindi_char = any('\u0900' <= char <= '\u097F' for char in cleaned)
+    if has_hindi_char:
+        return not (has_vowel_hi or has_vowel_en)
+    else:
+        return not has_vowel_en
+
+
+def analyze_sentiment(text: str, safety_only: bool = False) -> dict:
     """
     POSITIVE-ONLY POLICY:
       • Contains any harmful / negative word  → REJECTED
@@ -372,8 +414,19 @@ def analyze_sentiment(text: str) -> dict:
                    decision, reason
     """
     cleaned = clean_text(text)
+    cleaned = replace_whitelisted_words(cleaned)
 
     if not cleaned:
+        if safety_only:
+            return {
+                "sentiment": "neutral",
+                "score": 0,
+                "is_banned": False,
+                "harm_category": "NONE",
+                "harm_level": "NONE",
+                "decision": "approved",
+                "reason": "Approved — empty input"
+            }
         return _reject("Message is empty", "NONE", False)
 
     # --- RULE 1: Script Validation ---
@@ -413,6 +466,17 @@ def analyze_sentiment(text: str) -> dict:
                     category_name,
                     is_high
                 )
+
+    if safety_only:
+        return {
+            "sentiment": "neutral",
+            "score": 0,
+            "is_banned": False,
+            "harm_category": "NONE",
+            "harm_level": "NONE",
+            "decision": "approved",
+            "reason": "Approved — safety checks passed"
+        }
 
     # --- RULE 3: POSITIVE-ONLY CHECK ---
     # Count matching positive keywords in the message

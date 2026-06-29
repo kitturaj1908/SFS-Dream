@@ -185,6 +185,7 @@
                     <label for="student-name">Your Name <span
                             style="font-size: 0.8rem; color: #64748b;">(Optional)</span></label>
                     <input type="text" id="student-name" maxlength="35" placeholder="e.g., Priya Sharma">
+                    <div class="char-counter"><span id="name-char-count">0</span> / 35</div>
                 </div>
 
                 <div class="form-group">
@@ -221,7 +222,13 @@
 
 
     <script>
-        // Character counter
+        // Character counters
+        const nameInputEl = document.getElementById('student-name');
+        const nameCharCount = document.getElementById('name-char-count');
+        nameInputEl.addEventListener('input', () => {
+            nameCharCount.textContent = nameInputEl.value.length;
+        });
+
         const textarea = document.getElementById('student-message');
         const charCount = document.getElementById('char-count');
         textarea.addEventListener('input', () => {
@@ -304,6 +311,7 @@
                     nameInput.value = '';
                     messageInput.value = '';
                     charCount.textContent = '0';
+                    nameCharCount.textContent = '0';
 
                 } else {
                     alert(data.detail || "Error submitting message.");
